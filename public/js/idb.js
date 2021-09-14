@@ -1,8 +1,8 @@
 //Variable to Hold db Connection
 let db;
 
-//Create Connection to IndexedDB called 'budgetbase' and set at v1
-const request = indexedDB.open('budgetbase', 1);
+//Create Connection to IndexedDB called 'budget' and set at v1
+const request = indexedDB.open('budget', 2);
     request.onupgradeneeded = (e) => {
         const db = e.target.result;
             db.createObjectStore('new_input', {autoIncrement: true});
