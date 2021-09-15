@@ -1,73 +1,65 @@
-//Variable to Hold db Connection
 let db;
 
-//Create Connection to IndexedDB called 'budget' and set at v1
-const request = indexedDB.open('budget', 2);
-    request.onupgradeneeded = (e) => {
-        const db = e.target.result;
-            db.createObjectStore('new_input', {autoIncrement: true});
-        };
+const request = indexedDB.open('tracker', 1);
 
-//Successful Request
-    request.onsuccess = (e) => {
-        db = e.target.result;
-    //Check if Tracker is Online, if it is send local data to API
-        if(navigator.onLine) {
-            updateBudget();
-        }
-    };
-//Unsuccessful Request
-    request.onerror = (e) => {
-        console.log(e.target.errorCode);
-    };
+request.onupgradeneeded = function (event) {
+    const db = event.target.result;
 
+    db.createObjectStore('new_transaction', { autoIncrement: true });
+};
 
-//Save record with Offline Connection
-recordEntry = (record) =>  {
-    const newEntry = db.newEntry(['new_entry'], 'readwrite');
-    const entryObjectStore = newEntry.objectStore('new_entry');
-        entryObjectStore.add(record);
-}
+request.onsuccess = function (event) {
+    db = event.target.result;
 
-//Update Tracker once Connection has been restored
- updateBudget = () =>  {
-    console.log("Updating Your Budget!")
-    const newEntry = db.newEntry(['new_entry'], 'readwrite');
-    const insertStore = newEntry.objectStore('new_entry');
-    const grabAll = insertStore.grabAll();
+    if (navigator.onLine) {
+        uploadTransactions();
+    }
+};
 
-//When Successful run the following:
+request.onerror = function (event) {
+    console.log(event.target.errorCode);
+};
 
-    grabAll.onsuccess = () => {
-        console.log('Grabbing All Offline Inputs');
+function saveRecord(record) {
+    const transaction = db.transaction(['new_transaction'], 'readwrite');
+    const budgetObjectStore = transaction.objectStore('new_transaction');
 
-        if(grabAll.result.length > 0) {
-            fetch('./api/transaction/bulk', {
+    budgetObjectStore.add(record);
+};
+
+function uploadTransactions() {
+    const transaction = db.transaction(['new_transaction'], 'readwrite');
+    const budgetObjectStore = transaction.objectStore('new_transaction');
+
+    const getAll = budgetObjectStore.getAll();
+
+    getAll.onsuccess = function () {
+        if (getAll.result.length > 0) {
+            fetch('/api/transaction', {
                 method: 'POST',
-                body: JSON.stringify(grabAll.result),
-                headers:  {
+                body: JSON.stringify(getAll.result),
+                headers: {
                     Accept: 'application/json, text/plain, */*',
-                            'Content-Type': 'application/json'
+                    'Content-Type': 'application/json'
                 }
             })
-            .then(response => response.json())
-            .then(serverResponse => {
-                console.log(serverResponse);
+                .then(response => response.json())
+                .then(serverResponse => {
+                    if (serverResponse.message) {
+                        throw new Error(serverResponse);
+                    }
+                    const transaction = db.transaction(['new_transaction'], 'readwrite');
+                    const budgetObjectStore = transaction.objectStore('new_transaction');
 
-            newEntry = db.newEntry(['new_input'], 'readwrite');
-            entryObjectStore = newEntry.objectStore('new_input');
+                    budgetObjectStore.clear();
 
-            entryObjectStore.clear();
-
-            alert('Your entries have been updated! New Budget Available!');
-            })
-            .catch(err => {
-                console.log(err);
-            });
+                    alert('Your item has been saved to your Tracker!');
+                })
+                .catch(err => {
+                    console.log(err);
+                })
         }
-    }
-}
+    };
+};
 
-//Listener for Online Connecion
-
-window.addEventListener('online', updateBudget);
+window.addEventListener('online', uploadTransactions);
